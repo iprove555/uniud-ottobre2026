@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade di Dattilografia</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e1e2f, #2a2a40);
+            color: #fff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .container {
+            width: 100%;
+            max-width: 700px;
+            background: #22223b;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        h1, h2 { color: #f2e9e4; }
+        input, button {
+            padding: 12px 20px;
+            margin: 10px 0;
+            font-size: 16px;
+            border-radius: 8px;
+            border: none;
+            outline: none;
+        }
+        input {
+            width: 80%;
+            background: #4a4e69;
+            color: white;
+        }
+        button {
+            background: #9a8c98;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+        button:hover { background: #c9ada7; color: #222; }
+        .hidden { display: none !important; }
+        .game-area {
+            position: relative;
+            height: 350px;
+            background: #151522;
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 15px;
+            border: 2px solid #4a4e69;
+        }
+        .hud {
+            display: flex;
+            justify-content: space-between;
+            font-size: 18px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #9a8c98;
+        }
+        .target-word {
+            position: absolute;
+            background: #e05353;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+            font-size: 16px;
+        }
+        .falling-word {
+            position: absolute;
+            background: #4ea8de;
+            padding: 6px 12px;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .city-character {
+            position: absolute;
+            bottom: 20px;
+            left: 50px;
+            font-size: 40px;
+            transition: left 0.3s;
+        }
+        .menu-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container" id="login-screen">
+    <h1>Benvenuto al Typing Arcade!</h1>
+    <p>Inserisci i tuoi dati per iniziare a giocare:</p>
+    <input type="text" id="nome" placeholder="Nome"><br>
+    <input type="text" id="cognome" placeholder="Cognome"><br>
+    <input type="text" id="classe" placeholder="Classe (es. 2A)"><br><br>
+    <button onclick="startHub()">Accedi al Menu</button>
+</div>
+
+<div class="container hidden" id="hub-screen">
+    <h2>Scegli l'Esercizio, <span id="player-greeting"></span></h2>
+    <div class="menu-grid">
+        <button onclick="launchExercise(1)">1. Ballo Scatenato (Timer: 30s)</button>
+        <button onclick="launchExercise(2)">2. Parole in Caduta (Timer: 45s)</button>
+        <button onclick="launchExercise(3)">3. Avventura in Città (Timer: 60s)</button>
+    </div>
+</div>
+
+<div class="container hidden" id="game-screen">
+    <div class="hud">
+        <span id="exercise-title">Esercizio</span>
+        <span>Tempo: <span id="timer">0</span>s</span>
+        <span>Punti: <span id="score">0</span></span>
+    </div>
+    <div class="game-area" id="game-area"></div>
+    <input type="text" id="user-input" placeholder="Digita qui e premi Invio..." autocomplete="off">
+    <br>
+    <button onclick="returnToHub()">Torna al Menu</button>
+</div>
+
+<div class="container hidden" id="result-screen">
+    <h2>Fine Gioco!</h2>
+    <p id="final-stats"></p>
+    <button onclick="returnToHub()">Torna al Menu</button>
+</div>
+
+<script>
+    let player = { nome: '', cognome: '', classe: '' };
+    let currentEx = 0;
+    let timerInterval = null;
+    let gameInterval = null;
+    let timeLeft = 0;
+    let score = 0;
+    let activeWords = [];
+
+    function startHub() {
+        player.nome = document.getElementById('nome').value.trim();
+        player.cognome = document.getElementById('cognome').value.trim();
+        player.classe = document.getElementById('classe').value.trim();
+
+        if(!player.nome || !player.cognome || !player.classe) {
+            alert('Per favore compila tutti i campi!');
+            return;
+        }
+
+        document.getElementById('player-greeting').innerText = `${player.nome} (${player.classe})`;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('hub-screen').classList.remove('hidden');
+    }
+
+    function returnToHub() {
+        clearInterval(timerInterval);
+        clearInterval(gameInterval);
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.add('hidden');
+        document.getElementById('hub-screen').classList.remove('hidden');
+    }
+
+    function launchExercise(exNumber) {
+        currentEx = exNumber;
+        score = 0;
+        activeWords = [];
+        document.getElementById('hub-screen').classList.add('hidden');
+        document.getElementById('game-screen').classList.remove('hidden');
+        document.getElementById('score').innerText = score;
+        document.getElementById('user-input').value = '';
+        document.getElementById('user-input').focus();
+
+        const area = document.getElementById('game-area');
+        area.innerHTML = '';
+
+        if(exNumber === 1) {
+            document.getElementById('exercise-title').innerText = "1. Ballo Scatenato";
+            timeLeft = 30;
+            setupExercise1();
+        } else if(exNumber === 2) {
+            document.getElementById('exercise-title').innerText = "2. Parole in Caduta";
+            timeLeft = 45;
+            setupExercise2();
+        } else if(exNumber === 3) {
+            document.getElementById('exercise-title').innerText = "3. Avventura in Città";
+            timeLeft = 60;
+            setupExercise3();
+        }
+
+        document.getElementById('timer').innerText = timeLeft;
+        timerInterval = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').innerText = timeLeft;
+            if(timeLeft <= 0) endGame();
+        }, 1000);
+    }
+
+    // GESTIONE INPUT DA TASTIERA
+    document.getElementById('user-input').addEventListener('keydown', function(e) {
+        if(e.key === 'Enter') {
+            let val = this.value.trim().toLowerCase();
+            this.value = '';
+            checkTypedWord(val);
+        }
+    });
+
+    function checkTypedWord(word) {
+        let index = activeWords.findIndex(w => w.text.toLowerCase() === word);
+        if(index !== -1) {
+            score += 10;
+            document.getElementById('score').innerText = score;
+            activeWords[index].element.remove();
+            activeWords.splice(index, 1);
+            if(currentEx === 3) moveCharacterCity();
+        }
+    }
+
+    // --- ESERCIZIO 1: Ballo Scatenato ---
+    const wordsEx1 = ["danza", "ritmo", "musica", "salto", "disco", "passo", "festa"];
+    function setupExercise1() {
+        gameInterval = setInterval(() => {
+            if(activeWords.length < 4) {
+                let wordText = wordsEx1[Math.floor(Math.random() * wordsEx1.length)];
+                let area = document.getElementById('game-area');
+                let el = document.createElement('div');
+                el.className = 'target-word';
+                el.innerText = "🕺 " + wordText;
+                el.style.top = Math.random() * 280 + 'px';
+                el.style.left = Math.random() * 500 + 'px';
+                area.appendChild(el);
+                activeWords.push({ text: wordText, element: el });
+            }
+        }, 1500);
+    }
+
+    // --- ESERCIZIO 2: Parole in Caduta ---
+    const wordsEx2 = ["pioggia", "veloce", "tempo", "sfida", "codice", "tastiera", "scrivi"];
+    function setupExercise2() {
+        gameInterval = setInterval(() => {
+            let wordText = wordsEx2[Math.floor(Math.random() * wordsEx2.length)];
+            let area = document.getElementById('game-area');
+            let el = document.createElement('div');
+            el.className = 'falling-word';
+            el.innerText = wordText;
+            let posX = Math.random() * 550;
+            let posY = 0;
+            el.style.left = posX + 'px';
+            el.style.top = posY + 'px';
+            area.appendChild(el);
+            
+            let wordObj = { text: wordText, element: el, y: 0 };
+            activeWords.push(wordObj);
+
+            let fallInterval = setInterval(() => {
+                if(!activeWords.includes(wordObj)) {
+                    clearInterval(fallInterval);
+                    return;
+                }
+                wordObj.y += 2;
+                el.style.top = wordObj.y + 'px';
+                if(wordObj.y > 310) {
+                    el.remove();
+                    let idx = activeWords.indexOf(wordObj);
+                    if(idx !== -1) activeWords.splice(idx, 1);
+                    score = Math.max(0, score - 5);
+                    document.getElementById('score').innerText = score;
+                    clearInterval(fallInterval);
+                }
+            }, 50);
+        }, 2000);
+    }
+
+    // --- ESERCIZIO 3: Avventura in Città ---
+    const citySteps = [
+        { need: "semaforo", prompt: "STOP (digita 'semaforo')" },
+        { need: "attraversa", prompt: "STRISCE (digita 'attraversa')" },
+        { need: "autobus", prompt: "FERMATA (digita 'autobus')" },
+        { need: "mercato", prompt: "NEGOZIO (digita 'mercato')" },
+        { need: "casa", prompt: "ARRIVO (digita 'casa')" }
+    ];
+    let currentStepIndex = 0;
+
+    function setupExercise3() {
+        currentStepIndex = 0;
+        showCityPrompt();
+    }
+
+    function showCityPrompt() {
+        let area = document.getElementById('game-area');
+        area.innerHTML = `<div class="city-character" id="char">🚶‍♂️</div><div style="position: absolute; top: 20px; left: 20px; font-size: 20px; color: #ffb703;" id="city-prompt">Necessità: ${citySteps[currentStepIndex].prompt}</div>`;
+        
+        let wordText = citySteps[currentStepIndex].need;
+        activeWords = [{ text: wordText, element: document.getElementById('city-prompt') }];
+    }
+
+    function moveCharacterCity() {
+        currentStepIndex++;
+        if(currentStepIndex < citySteps.length) {
+            let char = document.getElementById('char');
+            let currentLeft = parseInt(char.style.left || 50);
+            char.style.left = (currentLeft + 100) + 'px';
+            showCityPrompt();
+        } else {
+            score += 50;
+            document.getElementById('score').innerText = score;
+            currentStepIndex = 0;
+            showCityPrompt();
+        }
+    }
+
+    function endGame() {
+        clearInterval(timerInterval);
+        clearInterval(gameInterval);
+        document.getElementById('game-screen').classList.add('hidden');
+        document.getElementById('result-screen').classList.remove('hidden');
+        document.getElementById('final-stats').innerText = `Ottimo lavoro, ${player.nome} ${player.cognome} (${player.classe})! Hai totalizzato ${score} punti.`;
+    }
+</script>
+
+</body>
+</html>
